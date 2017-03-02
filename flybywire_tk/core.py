@@ -28,11 +28,14 @@ def parse_component_tree(root_node):
     comp_props = root_node['_props']
 
     if callable(comp_name):
-        comp_node = comp_name(text=root_node['text'], **comp_props)
-    elif comp_name not in ui.available_widgets:
-        raise ValueError('Widget not found : %s' % comp_name)
-    else:
+        if root_node['text'] is not None:
+            comp_node = comp_name(text=root_node['text'], **comp_props)
+        else:
+            comp_node = comp_name(**comp_props)
+    elif comp_name in ui.available_widgets:
         comp_node = root_node
+    else:
+        raise ValueError('Widget not found : %s' % comp_name)
 
     subnodes = comp_node['text']
     if not isinstance(subnodes, str) and isinstance(subnodes, collections.Iterable):
@@ -48,6 +51,7 @@ class FBWApplication(object):
         self._root.title(title)
         self.kw = kw
         self._root_comp = None
+        self._comp_tree = None
 
     def mount(self, component, **props):
         """Mounts the given component in the application."""
@@ -77,7 +81,7 @@ class FBWApplication(object):
         self.frame.columnconfigure(0, weight=1)
         self.frame.columnconfigure(1, weight=1)
 
-        self.draw_component()
+        self.render()
 
         # After component creation
         # puts tkinter widget onto canvas
@@ -91,7 +95,6 @@ class FBWApplication(object):
 
         # updates geometry management
         self.frame.update_idletasks()
-
         # set canvas scroll region to all of the canvas
         self.canvas.config(scrollregion=self.canvas.bbox("all"))
 
@@ -103,12 +106,23 @@ class FBWApplication(object):
         self.is_running = True
         self.frame.update()
 
-    def draw_component(self):
-        comp_tree = self._root_comp()
-        # Recursively build component tree dict
-        # Diff tree against existing tree
-        # Instantiate or modify components as needed (pack(), update() or destroy())
+    def render_component(self, node):
+        node_cls = ui.available_widgets[node['_name']]
+        comp_obj, update_fn = node_cls(self.frame, node['text'], node['_props'])
+        comp_obj.pack(side='top')
+        # Also make sub nodes
+                
+        # Store component and update fn
 
+    def render(self):
+        # Recursively build component tree dict
+        root_tree = parse_component_tree(self._root_comp())
+        print(root_tree)
+
+        # TODO: Diff tree against existing tree
+
+        # Instantiate or modify components as needed (pack(), update() or destroy())
+        self.render_component(root_tree)
 
     @aio.coroutine
     def main_loop(self, loop=aio.get_event_loop()):
@@ -162,7 +176,7 @@ class TimerApp(Component):
     def __call__(self):
         """Renders view given application state."""
         count = self.secondsElapsed
-        return T(TimerView, self.secondsElapsed)
+        return T(TimerView, count=self.secondsElapsed)
 
     def tick(self):
         """Increments counter."""
@@ -181,25 +195,26 @@ class TimerApp(Component):
         """
         clear_interval(self.task)
 
-def TimerView(text=0):
-    return T('Label', 'Seconds Elapsed: '+str(text), color='red')
-
-# fbw = FBWApplication()
-# fbw.mount(TimerApp())
-# fbw.start()
+def TimerView(count=0):
+    return T('Label', 'Seconds Elapsed: '+str(count))
 
 if __name__ == '__main__':
     # Tests for component parsing
-    comps = T('Frame', [T(TimerView, 1337), T(TimerView, 6969)], align='center')
+    comps = T('Frame', [T(TimerView, count=1337), T(TimerView, count=6969)], align='center')
     out = parse_component_tree(comps)
+    print(out)
     assert out == {'_name': 'Frame',
              '_props': {'align': 'center'},
              'text': [{'_name': 'Label',
-                       '_props': {'color': 'red'},
+                       '_props': {},
                        'text': 'Seconds Elapsed: 1337'},
                       {'_name': 'Label',
-                       '_props': {'color': 'red'},
+                       '_props': {},
                        'text': 'Seconds Elapsed: 6969'}]}
 
-    comps = T(TimerView, 1337)
-    assert parse_component_tree(comps) == {'_name': 'Label', 'text': 'Seconds Elapsed: 1337', '_props': {'color': 'red'}}
+    comps = T(TimerView, count=1337)
+    assert parse_component_tree(comps) == {'_name': 'Label', 'text': 'Seconds Elapsed: 1337', '_props': {}}
+
+    fbw = FBWApplication()
+    fbw.mount(TimerApp())
+    fbw.start()

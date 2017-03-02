@@ -3,14 +3,13 @@ import sys
 import inspect
 import tkinter
 
-def Label(self, root, component_def):
+def Label(root, content, props):
     """A wrapper for tkinter.Label."""
-    _, content, props = component_def
 
     text_var = tkinter.StringVar()
     def update(**props):
         """Function used to update the label if changed."""
-        text_var.set(props['text'] if 'text' in props else content)
+        text_var.set(props.get('text', content))
 
     update(**props)
     if 'text' in props:
