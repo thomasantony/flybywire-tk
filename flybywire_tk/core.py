@@ -1,11 +1,17 @@
 """Core module"""
 import abc
 import asyncio as aio
-import tkinter
-import inspect
 import collections
 import copy
+import inspect
+import tkinter
 from tkinter import N,NE,E,SE,S,SW,W,NW
+
+import dictdiffer
+
+from dictdiffer import diff, patch
+from dictdiffer.utils import dot_lookup
+
 from misc import set_interval, clear_interval, AutoScrollbar
 import ui
 
@@ -56,6 +62,7 @@ class FBWApplication(object):
         self.kw = kw
         self._root_comp = None
         self._comp_tree = None
+        self._old_tree = None
 
     def invalidate(self):
         self._dirty = True
@@ -121,25 +128,54 @@ class FBWApplication(object):
         # Create component
         comp_obj, update_fn = node_cls(self._frame, node['text'], node['_props'])
         comp_obj.pack(side='top')
+        node['_comp_obj'] = comp_obj
+        node['_comp_update'] = update_fn
 
-        # Also make sub nodes
+        # TODO: Also make child nodes
 
         # Store component and update fn
 
     def render(self):
         # TODO: Fix it so only changed components are updated
-        for widget in self._frame.winfo_children():
-            widget.destroy()
+        # for widget in self._frame.winfo_children():
+        #     widget.destroy()
+
         # Recursively build component tree dict
         root_tree = parse_component_tree(self._root_comp())
-        print(root_tree)
 
+        if self._old_tree is not None:
+            delta = diff(self._old_tree, root_tree, ignore=('_comp_obj','_comp_update'))
+
+            for diff_type, index, data in delta:
+                if isinstance(index, str) or len(index) == 1:
+                    # Top-level change
+                    old_node = self._old_tree
+                else:
+                    # Sub-node change
+                    old_node = dot_lookup(self._old_tree, index[:-1])
+                old_comp = old_node.pop('_comp_obj', None)
+                old_update = old_node.pop('_comp_update', None)
+                if diff_type == 'change':
+                    new_node = patch([(diff_type, index, data)], old_node)
+                    if old_update is not None:
+                        old_update(text=old_node['text'], **old_node['_props'])
+
+                new_node['_comp_obj'] = old_comp
+                new_node['_comp_update'] = old_update
+                if isinstance(index, str) or len(index) == 1:
+                    root_tree = new_node
+                else:
+                    patch(root_tree, [('change', index[:-1], (old_node, new_node))])
+        else:
+            render_list = [(root_tree, None)]
+            self.render_component(root_tree)
         # TODO: Diff tree against existing tree
 
         # Instantiate or modify components as needed (pack(), update() or destroy())
-        self.render_component(root_tree)
+
 
         self._dirty = False
+        self._old_tree = root_tree
 
     @aio.coroutine
     def main_loop(self, loop=aio.get_event_loop()):
@@ -230,6 +266,33 @@ class TimerApp(Component):
         """
         clear_interval(self.task)
 
+class CounterApp(Component):
+    def __init__(self):
+        """Initialize the application."""
+        super().__init__()
+
+        self.count = 0
+
+    def __call__(self):
+        """Renders view given application state."""
+
+        return T(TimerView, count=self.secondsElapsed)
+
+    def tick(self):
+        """Increments counter."""
+        self.update(secondsElapsed = self.secondsElapsed + 1)
+
+    def on_mount(self):
+        """
+        Triggers when the component is mounted
+        """
+        self.task = set_interval(self.tick, 1)
+
+    def on_unmount(self):
+        """
+        Triggers when the component is removed
+        """
+        clear_interval(self.task)
 def TimerView(count=0):
     return T('Label', 'Seconds Elapsed: '+str(count))
 
