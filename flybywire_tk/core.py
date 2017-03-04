@@ -128,12 +128,14 @@ class FBWApplication(object):
         # Create component
         comp_obj, update_fn = node_cls(self._frame, node['text'], node['_props'])
         comp_obj.pack(side='top')
-        node['_comp_obj'] = comp_obj
-        node['_comp_update'] = update_fn
 
-        # TODO: Also make child nodes
+        if not isinstance(node['text'], str) and isinstance(node['text'], collections.Iterable):
+            for sub_node in node['text']:
+                self.render_component(sub_node)
 
         # Store component and update fn
+        node['_comp_obj'] = comp_obj
+        node['_comp_update'] = update_fn
 
     def render(self):
         # TODO: Fix it so only changed components are updated
@@ -305,5 +307,6 @@ if __name__ == '__main__':
     # assert parse_component_tree(comps) == {'_name': 'Label', 'text': 'Seconds Elapsed: 1337', '_props': {}}
 
     fbw = FBWApplication()
-    fbw.mount(TimerApp())
+    # fbw.mount(TimerApp())
+    fbw.mount(CounterApp())
     fbw.start()

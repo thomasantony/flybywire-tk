@@ -33,7 +33,7 @@ def Button(root, content, props):
 
 def Frame(root, content, props):
     """Frame container."""
-    return Frame(root, **props), None
+    return tkinter.Frame(root, **props), None
 
 available_widgets = {name: fn for name, fn in inspect.getmembers(sys.modules[__name__])
                      if callable(fn)}
