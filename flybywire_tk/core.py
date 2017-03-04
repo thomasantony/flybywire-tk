@@ -122,16 +122,18 @@ class FBWApplication(object):
         self.is_running = True
         self._frame.update()
 
-    def render_component(self, node):
+    def render_component(self, node, parent=None):
         node_cls = ui.available_widgets[node['_name']]
 
+        if parent is None:
+            parent = self._frame
         # Create component
-        comp_obj, update_fn = node_cls(self._frame, node['text'], node['_props'])
+        comp_obj, update_fn = node_cls(parent, node['text'], node['_props'])
         comp_obj.pack(side='top')
 
         if not isinstance(node['text'], str) and isinstance(node['text'], collections.Iterable):
             for sub_node in node['text']:
-                self.render_component(sub_node)
+                self.render_component(sub_node, comp_obj)
 
         # Store component and update fn
         node['_comp_obj'] = comp_obj
@@ -157,20 +159,19 @@ class FBWApplication(object):
                     old_node = dot_lookup(self._old_tree, index[:-1])
 
                 # Update node props
-                update_fn = old_node['_comp_update']
                 if diff_type == 'change':
-                    new_node = patch([(diff_type, index, data)], dict(_name=old_node['_name'],text=old_node['text'], _props=old_node['_props']))
+                    update_fn = old_node['_comp_update']
+                    new_node = dot_lookup(root_tree, index[:-1])
+                    new_node['_comp_update'] = update_fn
+                    new_node['_comp_obj'] = old_node['_comp_obj']
                     if update_fn is not None:
-                        update_fn(text=old_node['text'], **old_node['_props'])
+                        update_fn(text=new_node['text'], **new_node['_props'])
 
-                # Copy component info
-                new_node['_comp_obj'] = old_node['_comp_obj']
-                new_node['_comp_update'] = old_node['_comp_update']
+                # # Copy component info
 
-                if isinstance(index, str) or len(index) == 1:
-                    root_tree = new_node
-                else:
-                    patch(root_tree, [('change', index[:-1], (old_node, new_node))])
+                # Update new node in root tree (if new one created)
+
+                        # patch([('change', index[:-1], (old_node2, new_node))], root_tree)
         else:
             render_list = [(root_tree, None)]
             self.render_component(root_tree)
@@ -282,9 +283,18 @@ class CounterApp(Component):
         """Renders view given application state."""
         return T('Frame', [
                     T('Label', str(self.count)),
-                    T('Button','+'),
-                    T('Button','-')
+                    T('Button','+', command=self.increment),
+                    T('Button','-', command=self.decrement)
         ])
+
+    def increment(self):
+        self.update(count = self.count + 1)
+
+    def decrement(self):
+        self.update(count = self.count - 1)
+
+    def on_mount(self):
+        self.increment()
 
 def TimerView(count=0):
     return T('Label', 'Seconds Elapsed: '+str(count))
