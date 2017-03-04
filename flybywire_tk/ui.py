@@ -17,6 +17,20 @@ def Label(root, content, props):
 
     return (tkinter.Label(root, textvariable=text_var, **props), update)
 
+def Button(root, content, props):
+    """A wrapper for tkinter.Button."""
+
+    text_var = tkinter.StringVar()
+    def update(**props):
+        """Function used to update the label if changed."""
+        text_var.set(props.get('text', content))
+
+    update(**props)
+    if 'text' in props:
+        del props['text']
+
+    return (tkinter.Button(root, textvariable=text_var, **props), update)
+
 def Frame():
     """Test widget."""
     pass

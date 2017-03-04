@@ -23,7 +23,7 @@ def set_interval(fn, interval, args=()):
             fn(*args)
 
     loop = asyncio.get_event_loop()
-    task = asyncio.Task(repeater())
+    task = asyncio.ensure_future(repeater())
     return task
 
 def clear_interval(task):
