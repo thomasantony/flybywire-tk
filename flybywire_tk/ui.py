@@ -31,9 +31,9 @@ def Button(root, content, props):
 
     return (tkinter.Button(root, textvariable=text_var, **props), update)
 
-def Frame():
-    """Test widget."""
-    pass
+def Frame(root, content, props):
+    """Frame container."""
+    return Frame(root, **props), None
 
 available_widgets = {name: fn for name, fn in inspect.getmembers(sys.modules[__name__])
                      if callable(fn)}

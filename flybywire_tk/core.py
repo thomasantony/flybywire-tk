@@ -153,15 +153,18 @@ class FBWApplication(object):
                 else:
                     # Sub-node change
                     old_node = dot_lookup(self._old_tree, index[:-1])
-                old_comp = old_node.pop('_comp_obj', None)
-                old_update = old_node.pop('_comp_update', None)
-                if diff_type == 'change':
-                    new_node = patch([(diff_type, index, data)], old_node)
-                    if old_update is not None:
-                        old_update(text=old_node['text'], **old_node['_props'])
 
-                new_node['_comp_obj'] = old_comp
-                new_node['_comp_update'] = old_update
+                # Update node props
+                update_fn = old_node['_comp_update']
+                if diff_type == 'change':
+                    new_node = patch([(diff_type, index, data)], dict(_name=old_node['_name'],text=old_node['text'], _props=old_node['_props']))
+                    if update_fn is not None:
+                        update_fn(text=old_node['text'], **old_node['_props'])
+
+                # Copy component info
+                new_node['_comp_obj'] = old_node['_comp_obj']
+                new_node['_comp_update'] = old_node['_comp_update']
+
                 if isinstance(index, str) or len(index) == 1:
                     root_tree = new_node
                 else:
@@ -275,24 +278,12 @@ class CounterApp(Component):
 
     def __call__(self):
         """Renders view given application state."""
+        return T('Frame', [
+                    T('Label', str(self.count)),
+                    T('Button','+'),
+                    T('Button','-')
+        ])
 
-        return T(TimerView, count=self.secondsElapsed)
-
-    def tick(self):
-        """Increments counter."""
-        self.update(secondsElapsed = self.secondsElapsed + 1)
-
-    def on_mount(self):
-        """
-        Triggers when the component is mounted
-        """
-        self.task = set_interval(self.tick, 1)
-
-    def on_unmount(self):
-        """
-        Triggers when the component is removed
-        """
-        clear_interval(self.task)
 def TimerView(count=0):
     return T('Label', 'Seconds Elapsed: '+str(count))
 
